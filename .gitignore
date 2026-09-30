@@ -1,0 +1,23 @@
+# Binaries
+orderbook
+*.out
+*.exe
+
+# Object / intermediate files
+*.o
+*.obj
+*.d
+*.a
+*.so
+*.dylib
+
+# Build directories
+build/
+cmake-build-*/
+bin/
+obj/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
