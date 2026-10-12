@@ -21,3 +21,9 @@ obj/
 .vscode/
 .idea/
 .DS_Store
+
+# Test / benchmark binaries
+stress_test
+stress_test_asan
+benchmark
+*.dSYM/
