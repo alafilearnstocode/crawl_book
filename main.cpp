@@ -1,6 +1,3 @@
-// Test driver: builds small books, runs scenarios, prints before/after state,
-// and checks expected results. CHECK is always on (unlike assert, it survives -DNDEBUG).
-
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -57,7 +54,6 @@ static uint64_t qty_of(const OrderBook& b, uint64_t id) {
     return it == b.order_index.end() ? 0 : it->second.node->quantity;
 }
 
-// Tree and index must describe exactly the same set of orders, with no empty levels.
 static void check_invariants(const OrderBook& b) {
     size_t resting = 0;
     for (const auto* side : {&b.bids, &b.asks}) {
@@ -77,7 +73,7 @@ static void check_invariants(const OrderBook& b) {
     }
     CHECK(resting == b.order_index.size());
     if (!b.bids.empty() && !b.asks.empty())
-        CHECK(b.bids.rbegin()->first < b.asks.begin()->first);  // book is never left crossed
+        CHECK(b.bids.rbegin()->first < b.asks.begin()->first);
     std::printf("  invariants OK (%zu resting orders, index in sync)\n", resting);
 }
 
@@ -114,10 +110,10 @@ static void scenario1() {
     dump("after", b);
 
     CHECK(b.fills.size() == 1);
-    CHECK(b.fills[0].maker_id == 1);  // time priority: id 1 arrived before id 2
+    CHECK(b.fills[0].maker_id == 1);
     CHECK(qty_of(b, 1) == 70);
     CHECK(qty_of(b, 2) == 50);
-    CHECK(b.order_index.count(10) == 0);  // fully filled, never rested
+    CHECK(b.order_index.count(10) == 0);
     CHECK(b.bids.empty());
     CHECK(total_qty(b.asks) == 320);
     check_invariants(b);
@@ -145,7 +141,7 @@ static void scenario2() {
     CHECK(b.fills[1].price == 101 && b.fills[1].quantity == 50);
     CHECK(b.fills[2].price == 102 && b.fills[2].quantity == 20);
     CHECK(notional == 50 * 100 + 50 * 101 + 20 * 102);
-    CHECK(b.asks.count(100) == 0 && b.asks.count(101) == 0);  // swept levels removed
+    CHECK(b.asks.count(100) == 0 && b.asks.count(101) == 0);
     CHECK(qty_of(b, 3) == 80);
     CHECK(b.bids.empty());
     CHECK(total_qty(b.asks) == 80);
@@ -163,7 +159,7 @@ static void scenario3() {
     dump("after", b);
 
     CHECK(b.fills.size() == 1 && b.fills[0].price == 100 && b.fills[0].quantity == 50);
-    CHECK(qty_of(b, 10) == 30);  // remainder 80 - 50
+    CHECK(qty_of(b, 10) == 30);
     CHECK(b.bids.size() == 1 && b.bids.count(101) == 1);
     CHECK(b.asks.size() == 1 && b.asks.count(103) == 1);
     check_invariants(b);
@@ -171,7 +167,7 @@ static void scenario3() {
     std::printf("\n --- 3b. A later buy must not trade against the resting bid\n");
     submit_and_show(b, {11, true, 102, 40});
     dump("after", b);
-    CHECK(b.fills.size() == 1);  // no new fills
+    CHECK(b.fills.size() == 1);
     CHECK(qty_of(b, 11) == 40 && b.bids.size() == 2);
     check_invariants(b);
 
@@ -208,7 +204,7 @@ static void scenario4() {
     const uint64_t asks_before = total_qty(b.asks), bids_before = total_qty(b.bids);
     b.cancel(999);
     CHECK(b.order_index.size() == idx_before);
-    CHECK(b.order_index.count(999) == 0);  // proves no operator[] insert happened
+    CHECK(b.order_index.count(999) == 0);
     CHECK(total_qty(b.asks) == asks_before && total_qty(b.bids) == bids_before);
     std::printf("  book unchanged\n");
     check_invariants(b);
@@ -217,7 +213,7 @@ static void scenario4() {
     b.cancel(2);
     dump("after", b);
     CHECK(b.asks.count(100) == 0);
-    CHECK(b.asks.begin()->first == 101);  // best ask moved up
+    CHECK(b.asks.begin()->first == 101);
     check_invariants(b);
 
     std::printf(" >> cancel id=4 (the only bid) then cancel id=4 again (now unknown)\n");

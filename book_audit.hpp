@@ -1,9 +1,5 @@
 #pragma once
 
-// Structural audit of an OrderBook: the trees and the id index must describe
-// exactly the same orders. Returns an empty string if consistent, otherwise
-// a description of the first violation found.
-
 #include <cstddef>
 #include <string>
 

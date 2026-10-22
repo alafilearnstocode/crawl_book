@@ -1,9 +1,5 @@
 #pragma once
 
-// Deliberately naive reference engine used ONLY by the stress test as an oracle.
-// One flat vector of resting orders, linear scans everywhere: easy to verify by
-// reading, too slow for real use. It shares no matching code with OrderBook.
-
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -11,12 +7,12 @@
 #include <vector>
 
 #include "order.hpp"
-#include "order_book.hpp"  // for Fill
+#include "order_book.hpp"
 
 struct ReferenceBook {
     struct Resting {
         Order    order;
-        uint64_t seq;  // arrival sequence: lower = earlier = higher time priority
+        uint64_t seq;
     };
 
     std::vector<Resting> resting;
@@ -25,7 +21,6 @@ struct ReferenceBook {
 
     void submit(Order in) {
         while (in.quantity > 0) {
-            // Best opposite order: best price, then earliest arrival.
             std::size_t best = resting.size();
             for (std::size_t i = 0; i < resting.size(); ++i) {
                 const Order& r = resting[i].order;
@@ -61,8 +56,6 @@ struct ReferenceBook {
     }
 };
 
-// Canonical book snapshot: (is_buy, price, id, qty), asks ascending by price then
-// FIFO, then bids descending by price then FIFO. Both engines must produce the same one.
 using Snapshot = std::vector<std::tuple<bool, int64_t, uint64_t, uint64_t>>;
 
 inline Snapshot snapshot(const OrderBook& b) {
@@ -78,7 +71,6 @@ inline Snapshot snapshot(const ReferenceBook& r) {
     std::vector<const ReferenceBook::Resting*> v;
     for (const auto& x : r.resting) v.push_back(&x);
     auto key = [](const ReferenceBook::Resting* x) {
-        // asks before bids; asks by price up, bids by price down; then arrival
         return std::make_tuple(x->order.is_buy, x->order.is_buy ? -x->order.price : x->order.price, x->seq);
     };
     std::sort(v.begin(), v.end(), [&](auto* a, auto* b) { return key(a) < key(b); });

@@ -1,11 +1,3 @@
-// Randomized differential test: drives OrderBook and the naive ReferenceBook with
-// the same random submits/cancels and requires, after EVERY operation:
-//   - identical fills (taker, maker, price, qty, in order)
-//   - identical book contents (side, price, FIFO order, id, remaining qty)
-//   - OrderBook's trees and index pass audit()
-// Usage: ./stress_test [seeds=200] [ops_per_seed=20000] [first_seed=1]
-// A failure prints the seed and op number so it can be replayed exactly.
-
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -36,17 +28,15 @@ static void run_seed(uint64_t seed, uint64_t ops, Stats& st) {
     std::mt19937_64 rng(seed);
     auto uni = [&](int64_t lo, int64_t hi) { return std::uniform_int_distribution<int64_t>(lo, hi)(rng); };
 
-    // Vary the regime per seed: price band width controls how often orders cross
-    // and how many orders share a level; cancel rate controls book depth.
     const int64_t mid        = 10'000;
     const int64_t band       = uni(1, 25);
     const int64_t cancel_pct = uni(10, 50);
-    const int64_t max_qty    = uni(1, 3) == 1 ? 5 : 500;  // small qty => many exact-size fills
-    const std::size_t depth_cap = static_cast<std::size_t>(uni(20, 400));  // keeps per-op checks cheap
+    const int64_t max_qty    = uni(1, 3) == 1 ? 5 : 500;
+    const std::size_t depth_cap = static_cast<std::size_t>(uni(20, 400));
 
     OrderBook fast;
     ReferenceBook ref;
-    std::vector<uint64_t> ids;  // every id ever submitted (live, filled or cancelled)
+    std::vector<uint64_t> ids;
     uint64_t next_id = 1;
 
     for (uint64_t op = 0; op < ops; ++op) {
@@ -54,8 +44,6 @@ static void run_seed(uint64_t seed, uint64_t ops, Stats& st) {
 
         const bool at_cap = ref.resting.size() >= depth_cap;
         if (!ids.empty() && (at_cap || uni(1, 100) <= cancel_pct)) {
-            // Mostly a live resting order (anywhere in any level's FIFO); otherwise an
-            // id that was filled/cancelled already, or was never issued (no-op paths).
             uint64_t id;
             const int64_t kind = at_cap ? 1 : uni(1, 10);
             if (kind <= 7 && !ref.resting.empty())
