@@ -1,13 +1,3 @@
-// Benchmark for OrderBook. The workload is generated up front (so RNG and
-// bookkeeping are not timed), then replayed into a fresh book.
-//
-//   Throughput: the whole op stream with no per-op timers; repeated, median reported.
-//   Latency:    one clock read pair per op, percentiles per op type. On Apple
-//               Silicon steady_clock ticks every ~42 ns, so sub-100 ns values are
-//               quantized and include ~25 ns of clock overhead (printed below).
-//
-// Usage: ./benchmark [ops=2000000] [runs=5] [seed=42]
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -25,7 +15,7 @@ enum class Kind : uint8_t { Passive, Marketable, Cancel };
 
 struct Op {
     Kind  kind;
-    Order order;  // for Cancel only order.id is used
+    Order order;
 };
 
 struct Workload {
@@ -33,20 +23,16 @@ struct Workload {
     std::vector<Op> ops;
 };
 
-// Mix after prefill: passive limits that rest behind the touch, cancels of live
-// resting orders, and 10% marketable limits that cross and may sweep levels.
-// The cancel rate is 45% while the book is above the prefill depth and 30% below
-// it, so the book hovers around kPrefill resting orders for the whole run.
 static Workload generate(std::size_t n_ops, uint64_t seed) {
     constexpr std::size_t kPrefill = 20'000;
     constexpr int64_t     kMid     = 100'000;
-    constexpr int64_t     kDepth   = 50;  // passive orders land 1..kDepth ticks behind the touch
+    constexpr int64_t     kDepth   = 50;
 
     std::mt19937_64 rng(seed);
     auto uni = [&](int64_t lo, int64_t hi) { return std::uniform_int_distribution<int64_t>(lo, hi)(rng); };
 
-    OrderBook shadow;           // tracks the real book state so generated ops are meaningful
-    std::vector<uint64_t> live; // candidate live ids; dead ones are dropped lazily
+    OrderBook shadow;
+    std::vector<uint64_t> live;
     uint64_t next_id = 1;
     Workload w;
 
@@ -82,7 +68,6 @@ static Workload generate(std::size_t n_ops, uint64_t seed) {
         const int64_t r = uni(1, 100);
         const int64_t cancel_pct = shadow.order_index.size() > kPrefill ? 45 : 30;
         if (r <= cancel_pct && !shadow.order_index.empty()) {
-            // Draw random candidates until one is still live (filled ones are dropped).
             uint64_t id = 0;
             do {
                 const std::size_t i = static_cast<std::size_t>(uni(0, static_cast<int64_t>(live.size()) - 1));
@@ -91,7 +76,7 @@ static Workload generate(std::size_t n_ops, uint64_t seed) {
                 live.pop_back();
             } while (!shadow.order_index.count(id));
             apply(w.ops, {Kind::Cancel, {id, false, 0, 0}});
-        } else if (r <= 90) {  // passive takes the rest of the first 90%
+        } else if (r <= 90) {
             apply(w.ops, passive());
         } else {
             apply(w.ops, marketable());
@@ -105,8 +90,6 @@ static void prefill(OrderBook& b, const Workload& w) {
     b.fills.clear();
 }
 
-// Returns {elapsed ns, fills produced}. fills.clear() keeps the log from growing;
-// it runs inside the timed loop and is a few ns.
 static std::pair<double, uint64_t> run_throughput(const Workload& w) {
     OrderBook b;
     prefill(b, w);
@@ -119,7 +102,7 @@ static std::pair<double, uint64_t> run_throughput(const Workload& w) {
         b.fills.clear();
     }
     const auto t1 = Clock::now();
-    if (b.order_index.empty()) std::puts("");  // keep the book observable
+    if (b.order_index.empty()) std::puts("");
     return {static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count()), fills};
 }
 
@@ -139,7 +122,6 @@ int main(int argc, char** argv) {
     std::size_t counts[3] = {};
     for (const Op& op : w.ops) ++counts[static_cast<int>(op.kind)];
 
-    // Steady-state depth reached by replaying once.
     std::size_t depth = 0, levels = 0, min_depth = SIZE_MAX, max_depth = 0;
     {
         OrderBook b;
@@ -163,7 +145,6 @@ int main(int argc, char** argv) {
     std::printf("  book depth during run: %zu..%zu resting orders; at end %zu across %zu price levels\n\n",
                 min_depth, max_depth, depth, levels);
 
-    // --- Throughput
     std::vector<double> ns;
     uint64_t fills = 0;
     for (int r = 0; r < runs; ++r) {
@@ -179,8 +160,7 @@ int main(int argc, char** argv) {
                 static_cast<double>(n_ops) / ns.front() * 1e3, static_cast<double>(n_ops) / ns.back() * 1e3);
     std::printf("  %llu fills per run\n\n", static_cast<unsigned long long>(fills));
 
-    // --- Clock overhead
-    uint64_t tick = UINT64_MAX;  // smallest nonzero step the clock can show
+    uint64_t tick = UINT64_MAX;
     for (int i = 0; i < 100'000; ++i) {
         const auto a = Clock::now();
         const auto b = Clock::now();
@@ -191,7 +171,6 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 1'000'000; ++i) (void)Clock::now();
     const double now_cost = static_cast<double>((Clock::now() - c0).count()) / 1e6;
 
-    // --- Per-op latency
     std::vector<uint32_t> lat[3];
     for (auto& v : lat) v.reserve(n_ops);
     {

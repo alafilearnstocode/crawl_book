@@ -17,7 +17,6 @@ stress_test: stress_test.cpp reference_book.hpp book_audit.hpp $(HEADERS)
 benchmark: benchmark.cpp $(HEADERS)
 	$(CXX) $(CXXFLAGS) -o $@ benchmark.cpp
 
-# Scenario driver + randomized differential test against the reference engine.
 test: orderbook stress_test
 	./orderbook
 	./stress_test
@@ -25,7 +24,6 @@ test: orderbook stress_test
 stress: stress_test
 	./stress_test
 
-# Stress test under AddressSanitizer + UBSan (fewer seeds; sanitizers are slow).
 asan: stress_test.cpp reference_book.hpp book_audit.hpp $(HEADERS)
 	$(CXX) $(SANFLAGS) -o stress_test_asan stress_test.cpp
 	./stress_test_asan 30 20000
